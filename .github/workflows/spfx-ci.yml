@@ -1,4 +1,4 @@
-name: SPFx CI/CD Production
+name: SPFx CI/CD Pipeline
 
 on:
   push:
@@ -10,50 +10,47 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+    # Checkout code
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
+    # Setup Node 18 (SPFx 1.20 requirement)
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: 18.x
 
-      - name: Install Dependencies
-        run: npm install
+    # Install dependencies
+    - name: Install dependencies
+      run: npm install
 
-      - name: Install Gulp CLI
-        run: npm install gulp-cli -g
+    # Build SPFx
+    - name: Build solution
+      run: gulp build --ship
 
-      - name: Build SPFx Solution
-        run: |
-          gulp clean
-          gulp bundle --ship
-          gulp package-solution --ship
+    # Bundle solution
+    - name: Bundle solution
+      run: gulp bundle --ship
 
-      - name: Upload SPPKG Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: sppkg-file
-          path: sharepoint/solution/*.sppkg
+    # Package solution
+    - name: Package solution
+      run: gulp package-solution --ship
 
-      - name: Install PnP PowerShell
-        shell: pwsh
-        run: |
-          Install-Module PnP.PowerShell -Force -Scope CurrentUser
+    # Deploy to SharePoint App Catalog
+    - name: Deploy to SharePoint App Catalog
+      shell: pwsh
+      run: |
+        Install-Module PnP.PowerShell -Force -Scope CurrentUser
 
-      - name: Deploy to SharePoint App Catalog
-        shell: pwsh
-        run: |
-          $sppkgPath = Get-ChildItem -Path "sharepoint/solution/*.sppkg" | Select-Object -First 1
+        Connect-PnPOnline `
+          -Url "https://wb0wj-admin.sharepoint.com" `
+          -ClientId "${{ secrets.CLIENT_ID }}" `
+          -ClientSecret "${{ secrets.CLIENT_SECRET }}"
 
-          Connect-PnPOnline `
-            -Url "https://wb0wj-admin.sharepoint.com" `
-            -ClientId "${{ secrets.CLIENT_ID }}" `
-            -ClientSecret "${{ secrets.CLIENT_SECRET }}" `
-            -Tenant "wb0wj.onmicrosoft.com"
+        $sppkgPath = Get-ChildItem -Path "sharepoint/solution" -Filter *.sppkg
 
-          Add-PnPApp `
-            -Path $sppkgPath.FullName `
-            -Scope Tenant `
-            -Publish `
-            -Overwrite
+        Add-PnPApp `
+          -Path $sppkgPath.FullName `
+          -Scope Tenant `
+          -Publish `
+          -Overwrite
