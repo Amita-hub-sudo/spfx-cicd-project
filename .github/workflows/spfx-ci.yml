@@ -10,56 +10,47 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      # 1️⃣ Checkout repository
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 2️⃣ Setup Node 18 (Required for SPFx 1.20)
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
-      # 3️⃣ Install dependencies
       - name: Install Dependencies
         run: npm install
 
-      # 4️⃣ Install Gulp CLI globally
       - name: Install Gulp CLI
         run: npm install gulp-cli -g
 
-      # 5️⃣ Build SPFx production package
       - name: Build SPFx Solution
         run: |
           gulp clean
           gulp bundle --ship
           gulp package-solution --ship
 
-      # 6️⃣ Upload SPPKG artifact (for verification)
       - name: Upload SPPKG Artifact
         uses: actions/upload-artifact@v4
         with:
           name: sppkg-file
           path: sharepoint/solution/*.sppkg
 
-      # 7️⃣ Install PnP PowerShell
       - name: Install PnP PowerShell
         shell: pwsh
         run: |
           Install-Module PnP.PowerShell -Force -Scope CurrentUser
 
-      # 8️⃣ Deploy to SharePoint App Catalog
       - name: Deploy to SharePoint App Catalog
         shell: pwsh
         run: |
           $sppkgPath = Get-ChildItem -Path "sharepoint/solution/*.sppkg" | Select-Object -First 1
 
           Connect-PnPOnline `
-            -Url "https://wb0wj-admin.sharepoint.com/" `
+            -Url "https://wb0wj.sharepoint.com/" `
             -ClientId "${{ secrets.CLIENT_ID }}" `
             -ClientSecret "${{ secrets.CLIENT_SECRET }}" `
-            -Tenant "${{ secrets.TENANT_ID }}" `
-            -ClientSecretAuthentication
+            -Tenant "wb0wj.onmicrosoft.com"
 
           Add-PnPApp `
             -Path $sppkgPath.FullName `
