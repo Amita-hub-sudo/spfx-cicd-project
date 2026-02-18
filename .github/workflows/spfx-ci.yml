@@ -35,7 +35,7 @@ jobs:
           gulp bundle --ship
           gulp package-solution --ship
 
-      # 5️⃣ Install latest PnP PowerShell
+      # 5️⃣ Install PnP PowerShell
       - name: Install PnP PowerShell
         shell: pwsh
         run: |
@@ -67,15 +67,8 @@ jobs:
           [IO.File]::WriteAllBytes("cert.pfx", $bytes)
           Write-Host "✅ Certificate file created."
 
-      # 8️⃣ Debug solution folder
-      - name: Debug solution folder
-        shell: pwsh
-        run: |
-          Write-Host "Listing sharepoint/solution folder:"
-          Get-ChildItem -Recurse sharepoint/solution
-
-      # 9️⃣ Deploy to SharePoint
-      - name: Deploy to SharePoint
+      # 8️⃣ Deploy to Tenant App Catalog
+      - name: Deploy to SharePoint Tenant App Catalog
         shell: pwsh
         run: |
           Import-Module PnP.PowerShell -Force
@@ -83,27 +76,30 @@ jobs:
           $securePassword = ConvertTo-SecureString "${{ secrets.CERT_PASSWORD }}" -AsPlainText -Force
 
           Connect-PnPOnline `
-            -Url "https://wb0wj.sharepoint.com/sites/appcatalog" `
+            -Url "https://wb0wj-admin.sharepoint.com" `
             -ClientId "${{ secrets.CLIENT_ID }}" `
             -Tenant "wb0wj.onmicrosoft.com" `
             -CertificatePath "cert.pfx" `
             -CertificatePassword $securePassword
 
-          Write-Host "✅ Connected to SharePoint."
+          Write-Host "✅ Connected to SharePoint Admin Center."
 
-          # Auto-detect sppkg file
+          # Find sppkg file
           $package = Get-ChildItem "sharepoint/solution/*.sppkg" | Select-Object -First 1
 
           if (-not $package) {
             throw "No .sppkg file found in sharepoint/solution folder!"
           }
 
-          Write-Host "Deploying package: $($package.FullName)"
+          Write-Host "📦 Deploying package: $($package.FullName)"
 
-          Add-PnPApp `
+          # Upload app
+          $app = Add-PnPApp `
             -Path $package.FullName `
             -Scope Tenant `
-            -Publish `
             -Overwrite
+
+          # Publish app
+          Publish-PnPApp -Identity $app.Id -Scope Tenant
 
           Write-Host "🚀 Deployment completed successfully!"
