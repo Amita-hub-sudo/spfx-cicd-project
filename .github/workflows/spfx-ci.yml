@@ -10,23 +10,23 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      # Checkout repository
+      # 1️⃣ Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Setup Node 18
+      # 2️⃣ Setup Node.js (SPFx compatible)
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      # Install dependencies
+      # 3️⃣ Install dependencies
       - name: Install dependencies
         run: |
           npm install
           npm install -g gulp
 
-      # Build SPFx
+      # 4️⃣ Build SPFx solution
       - name: Build solution
         run: |
           gulp clean
@@ -34,13 +34,13 @@ jobs:
           gulp bundle --ship
           gulp package-solution --ship
 
-      # Install latest PnP PowerShell
+      # 5️⃣ Install latest PnP PowerShell
       - name: Install PnP PowerShell
         shell: pwsh
         run: |
           Install-Module PnP.PowerShell -Scope CurrentUser -Force -SkipPublisherCheck
 
-      # Validate secrets
+      # 6️⃣ Validate required secrets
       - name: Validate Secrets
         shell: pwsh
         run: |
@@ -58,15 +58,22 @@ jobs:
 
           Write-Host "✅ Secrets validated."
 
-      # Create certificate file
+      # 7️⃣ Create certificate file from Base64
       - name: Create certificate file
         shell: pwsh
         run: |
           $bytes = [Convert]::FromBase64String("${{ secrets.CERT_BASE64 }}")
           [IO.File]::WriteAllBytes("cert.pfx", $bytes)
-          Write-Host "✅ Certificate created."
+          Write-Host "✅ Certificate file created."
 
-      # Deploy to SharePoint
+      # 8️⃣ Debug solution folder (helps avoid null reference error)
+      - name: Debug solution folder
+        shell: pwsh
+        run: |
+          Write-Host "Listing sharepoint/solution folder:"
+          Get-ChildItem -Recurse sharepoint/solution
+
+      # 9️⃣ Deploy to SharePoint
       - name: Deploy to SharePoint
         shell: pwsh
         run: |
@@ -83,8 +90,17 @@ jobs:
 
           Write-Host "✅ Connected to SharePoint."
 
+          # Auto-detect sppkg file
+          $package = Get-ChildItem "sharepoint/solution/*.sppkg" | Select-Object -First 1
+
+          if (-not $package) {
+            throw "No .sppkg file found in sharepoint/solution folder!"
+          }
+
+          Write-Host "Deploying package: $($package.FullName)"
+
           Add-PnPApp `
-            -Path "sharepoint/solution/hello-word.sppkg" `
+            -Path $package.FullName `
             -Scope Tenant `
             -Publish `
             -Overwrite
