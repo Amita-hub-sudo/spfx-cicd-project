@@ -43,7 +43,7 @@ jobs:
         Install-Module PnP.PowerShell -Force -Scope CurrentUser
 
         Connect-PnPOnline `
-          -Url "https://wb0wj-admin.sharepoint.com" `
+          -Url "https://wb0wj.sharepoint.com/sites/appcatalog" `
           -ClientId "${{ secrets.CLIENT_ID }}" `
           -ClientSecret "${{ secrets.CLIENT_SECRET }}"
 
