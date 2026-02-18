@@ -1,0 +1,37 @@
+name: SPFx CI Build
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '16'   # Change if needed
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Install Gulp
+        run: npm install gulp-cli -g
+
+      - name: Build Solution
+        run: |
+          gulp clean
+          gulp bundle --ship
+          gulp package-solution --ship
+
+      - name: Upload Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: sppkg-file
+          path: sharepoint/solution/*.sppkg
