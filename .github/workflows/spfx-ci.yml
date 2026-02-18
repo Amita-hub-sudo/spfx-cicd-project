@@ -12,29 +12,35 @@ jobs:
     env:
       TENANT_DOMAIN: wb0wj.onmicrosoft.com
       APP_CATALOG_URL: https://wb0wj.sharepoint.com/sites/appcatalog
-      ADMIN_URL: https://wb0wj-admin.sharepoint.com
 
     steps:
+      # Checkout repository
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Setup Node
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      - name: Install dependencies
+      # Install dependencies
+      - name: Install npm packages
         run: npm ci
 
+      # Build SPFx solution
       - name: Build SPFx solution
         run: |
           gulp bundle --ship
           gulp package-solution --ship
 
+      # Install PnP PowerShell
       - name: Install PnP PowerShell
         shell: pwsh
-        run: Install-Module PnP.PowerShell -Force -Scope CurrentUser
+        run: |
+          Install-Module PnP.PowerShell -Force -Scope CurrentUser
 
+      # Deploy to SharePoint App Catalog
       - name: Deploy to SharePoint App Catalog
         shell: pwsh
         env:
@@ -43,14 +49,15 @@ jobs:
         run: |
           Connect-PnPOnline `
             -Url "$env:APP_CATALOG_URL" `
-            -TenantAdminUrl "$env:ADMIN_URL" `
             -ClientId "$env:CLIENT_ID" `
             -ClientSecret "$env:CLIENT_SECRET" `
             -Tenant "$env:TENANT_DOMAIN"
 
           Add-PnPApp `
-            -Path "sharepoint/solution/your-solution.sppkg" `
+            -Path "sharepoint/solution/hello-word.sppkg" `
             -Overwrite
 
           Publish-PnPApp `
-            -Identity "your-solution.sppkg"
+            -Identity "hello-word.sppkg"
+
+          Write-Host "Deployment completed successfully."
