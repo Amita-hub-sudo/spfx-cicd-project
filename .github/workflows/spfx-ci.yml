@@ -1,13 +1,13 @@
-name: SPFx CI Build
+name: SPFx CI/CD Production
 
 on:
   push:
     branches:
-      - main
+      - main   # Change to master if your branch is master
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build-and-deploy:
+    runs-on: windows-latest
 
     steps:
       - name: Checkout Code
@@ -16,22 +16,44 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '16'   # Change if needed
+          node-version: '16'   # Change to 18 if SPFx 1.18+
 
       - name: Install Dependencies
         run: npm install
 
-      - name: Install Gulp
+      - name: Install Gulp CLI
         run: npm install gulp-cli -g
 
-      - name: Build Solution
+      - name: Build SPFx Solution
         run: |
           gulp clean
           gulp bundle --ship
           gulp package-solution --ship
 
-      - name: Upload Package
+      - name: Upload SPPKG Artifact
         uses: actions/upload-artifact@v4
         with:
           name: sppkg-file
           path: sharepoint/solution/*.sppkg
+
+      - name: Install PnP PowerShell
+        shell: pwsh
+        run: |
+          Install-Module PnP.PowerShell -Force -Scope CurrentUser
+
+      - name: Deploy to SharePoint App Catalog
+        shell: pwsh
+        run: |
+          $sppkgPath = Get-ChildItem -Path "sharepoint/solution/*.sppkg" | Select-Object -First 1
+
+          Connect-PnPOnline `
+            -Url "https://wb0wj.sharepoint.com/" `
+            -ClientId "${{ secrets.CLIENT_ID }}" `
+            -ClientSecret "${{ secrets.CLIENT_SECRET }}" `
+            -Tenant "${{ secrets.TENANT_ID }}"
+
+          Add-PnPApp `
+            -Path $sppkgPath.FullName `
+            -Scope Tenant `
+            -Publish `
+            -Overwrite
