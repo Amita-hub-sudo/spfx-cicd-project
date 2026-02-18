@@ -47,7 +47,7 @@ jobs:
           $sppkgPath = Get-ChildItem -Path "sharepoint/solution/*.sppkg" | Select-Object -First 1
 
           Connect-PnPOnline `
-            -Url "https://wb0wj.sharepoint.com/" `
+            -Url "https://wb0wj-admin.sharepoint.com" `
             -ClientId "${{ secrets.CLIENT_ID }}" `
             -ClientSecret "${{ secrets.CLIENT_SECRET }}" `
             -Tenant "wb0wj.onmicrosoft.com"
