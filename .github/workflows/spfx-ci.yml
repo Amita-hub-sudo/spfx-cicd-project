@@ -34,11 +34,11 @@ jobs:
           gulp bundle --ship
           gulp package-solution --ship
 
-      # Install PnP PowerShell
+      # Install specific working PnP PowerShell version
       - name: Install PnP PowerShell
         shell: pwsh
         run: |
-          Install-Module PnP.PowerShell -Force -Scope CurrentUser
+          Install-Module PnP.PowerShell -RequiredVersion 2.5.0 -Force -Scope CurrentUser
 
       # Deploy to SharePoint App Catalog
       - name: Deploy to SharePoint App Catalog
@@ -48,10 +48,10 @@ jobs:
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
           Connect-PnPOnline `
-            -Url "$env:APP_CATALOG_URL" `
-            -ClientId "$env:CLIENT_ID" `
-            -ClientSecret "$env:CLIENT_SECRET" `
-            -Tenant "$env:TENANT_DOMAIN"
+            -Url $env:APP_CATALOG_URL `
+            -ClientId $env:CLIENT_ID `
+            -ClientSecret $env:CLIENT_SECRET `
+            -Tenant $env:TENANT_DOMAIN
 
           Add-PnPApp `
             -Path "sharepoint/solution/hello-word.sppkg" `
