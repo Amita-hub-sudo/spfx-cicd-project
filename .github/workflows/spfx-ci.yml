@@ -50,7 +50,7 @@ jobs:
           $securePassword = ConvertTo-SecureString "${{ secrets.CERT_PASSWORD }}" -AsPlainText -Force
 
           Connect-PnPOnline `
-            -Url "https://wb0wj.sharepoint.com/sites/appcatalog/AppCatalog/Forms/AllItems.aspx" `
+            -Url "https://wb0wj-admin.sharepoint.com" `
             -ClientId "${{ secrets.CLIENT_ID }}" `
             -Tenant "wb0wj.onmicrosoft.com" `
             -CertificatePath "cert.pfx" `
@@ -68,7 +68,7 @@ jobs:
 
           $app = Add-PnPApp `
             -Path $package.FullName `
-            -Scope Site `
+            -Scope Tenant
             -Overwrite
 
           Publish-PnPApp -Identity $app.Id -Scope Site
