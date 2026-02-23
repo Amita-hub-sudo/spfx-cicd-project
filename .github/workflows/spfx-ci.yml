@@ -155,8 +155,8 @@ jobs:
           $package = Get-ChildItem *.sppkg | Select-Object -First 1
 
           m365 spo app add --filePath $package.FullName --overwrite --appCatalogScope tenant
-          m365 spo app deploy --name $package.Name --appCatalogScope tenant --skipFeatureDeployment true
-          m365 spo app install --name $package.Name --siteUrl https://wb0wj.sharepoint.com/sites/prod
+          m365 spo app deploy --id $package.UniqueId --appCatalogScope tenant --skipFeatureDeployment true
+          m365 spo app install --id $package.UniqueId --appCatalogScope tenant --siteUrl https://your-site-url
 
       - name: Logout
         run: m365 logout
