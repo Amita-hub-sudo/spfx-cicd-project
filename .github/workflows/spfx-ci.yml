@@ -3,7 +3,7 @@ name: SPFx CI/CD
 on:
   push:
     branches:
-      - develop
+      - develop 
       - test
       - main
 
