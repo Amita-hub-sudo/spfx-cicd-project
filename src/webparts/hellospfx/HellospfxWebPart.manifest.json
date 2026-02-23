@@ -19,7 +19,7 @@
     "groupId": "5c03119e-3074-46fd-976b-c60198311f70", // Advanced
     "group": { "default": "Advanced" },
     "title": { "default": "hellospfx" },
-    "description": { "default": "hellospfx description" },
+    "description": { "default": "hellospfx description1234567890" },
     "officeFabricIconFontName": "Page",
     "properties": {
       "description": "hellospfx"
