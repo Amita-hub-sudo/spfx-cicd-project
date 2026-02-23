@@ -155,8 +155,9 @@ jobs:
           $package = Get-ChildItem *.sppkg | Select-Object -First 1
 
           m365 spo app add --filePath $package.FullName --overwrite --appCatalogScope tenant
-          m365 spo app deploy --id $package.UniqueId --appCatalogScope tenant --skipFeatureDeployment true
-          m365 spo app install --id $package.UniqueId --appCatalogScope tenant --siteUrl https://your-site-url
+          $app = m365 spo app list --appCatalogScope tenant --output json | ConvertFrom-Json | Where-Object { $_.Title -eq "hello-word-client-side-solution" }
+          m365 spo app deploy --id $app.Id --appCatalogScope tenant --skipFeatureDeployment
+          m365 spo app install --id $app.Id --appCatalogScope tenant --siteUrl https://wb0w.sharepoint.com/sites/prod
 
       - name: Logout
         run: m365 logout
