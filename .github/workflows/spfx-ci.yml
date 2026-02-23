@@ -1,42 +1,32 @@
-name: Build and Deploy SPFx to SharePoint App Catalog
+name: SPFx Multi-Stage CI/CD
 
 on:
   push:
     branches:
+      - develop
+      - test
       - main
 
 jobs:
-  build-and-deploy:
+
+  build:
     runs-on: windows-latest
 
     steps:
-
-      # =====================================
-      # Checkout Code
-      # =====================================
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # =====================================
-      # Setup Node.js (FIXED TO NODE 20)
-      # =====================================
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
-      # =====================================
-      # Install Dependencies
-      # =====================================
       - name: Install dependencies
         run: |
           npm ci
           npm install -g gulp
 
-      # =====================================
-      # Build SPFx Solution
-      # =====================================
       - name: Build SPFx solution
         run: |
           gulp clean
@@ -44,25 +34,33 @@ jobs:
           gulp bundle --ship
           gulp package-solution --ship
 
-      # =====================================
-      # Install CLI for Microsoft 365
-      # =====================================
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: spfx-package
+          path: sharepoint/solution/*.sppkg
+
+
+  deploy-dev:
+    if: github.ref == 'refs/heads/develop'
+    needs: build
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: spfx-package
+
       - name: Install CLI for Microsoft 365
         run: npm install -g @pnp/cli-microsoft365
 
-      # =====================================
-      # Create Certificate File from Secret
-      # =====================================
       - name: Create certificate file
         shell: pwsh
         run: |
           $bytes = [Convert]::FromBase64String("${{ secrets.CERT_BASE64 }}")
           [IO.File]::WriteAllBytes("cert.pfx", $bytes)
 
-      # =====================================
-      # Login to Microsoft 365
-      # =====================================
-      - name: Login to Microsoft 365
+      - name: Login
         run: |
           m365 login --authType certificate `
             --appId "${{ secrets.CLIENT_ID }}" `
@@ -70,40 +68,95 @@ jobs:
             --certificateFile "cert.pfx" `
             --password "${{ secrets.CERT_PASSWORD }}"
 
-      # =====================================
-      # Get Generated SPPKG File
-      # =====================================
-      - name: Get package info
+      - name: Deploy to DEV
         shell: pwsh
         run: |
-          $package = Get-ChildItem sharepoint/solution/*.sppkg | Select-Object -First 1
-          if (-not $package) { throw "No .sppkg file found!" }
+          $package = Get-ChildItem *.sppkg | Select-Object -First 1
 
-          echo "PACKAGE_NAME=$($package.Name)" >> $env:GITHUB_ENV
-          echo "PACKAGE_PATH=$($package.FullName)" >> $env:GITHUB_ENV
+          m365 spo app add --filePath $package.FullName --overwrite --appCatalogScope tenant
+          m365 spo app deploy --name $package.Name --appCatalogScope tenant --skipFeatureDeployment true
+          m365 spo app install --name $package.Name --siteUrl https://wb0wj.sharepoint.com/sites/dev
 
-      # =====================================
-      # Upload App to Tenant App Catalog
-      # =====================================
-      - name: Upload to Tenant App Catalog
+      - name: Logout
+        run: m365 logout
+
+
+  deploy-test:
+    if: github.ref == 'refs/heads/test'
+    needs: build
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: spfx-package
+
+      - name: Install CLI
+        run: npm install -g @pnp/cli-microsoft365
+
+      - name: Create certificate file
+        shell: pwsh
         run: |
-          m365 spo app add `
-            --filePath "${{ env.PACKAGE_PATH }}" `
-            --overwrite `
-            --appCatalogScope tenant
+          $bytes = [Convert]::FromBase64String("${{ secrets.CERT_BASE64 }}")
+          [IO.File]::WriteAllBytes("cert.pfx", $bytes)
 
-      # =====================================
-      # Deploy App
-      # =====================================
-      - name: Deploy App
+      - name: Login
         run: |
-          m365 spo app deploy `
-            --name "${{ env.PACKAGE_NAME }}" `
-            --appCatalogScope tenant `
-            --skipFeatureDeployment true
+          m365 login --authType certificate `
+            --appId "${{ secrets.CLIENT_ID }}" `
+            --tenant "wb0wj.onmicrosoft.com" `
+            --certificateFile "cert.pfx" `
+            --password "${{ secrets.CERT_PASSWORD }}"
 
-      # =====================================
-      # Logout
-      # =====================================
+      - name: Deploy to TEST
+        shell: pwsh
+        run: |
+          $package = Get-ChildItem *.sppkg | Select-Object -First 1
+
+          m365 spo app add --filePath $package.FullName --overwrite --appCatalogScope tenant
+          m365 spo app deploy --name $package.Name --appCatalogScope tenant --skipFeatureDeployment true
+          m365 spo app install --name $package.Name --siteUrl https://wb0wj.sharepoint.com/sites/testing
+
+      - name: Logout
+        run: m365 logout
+
+
+  deploy-prod:
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: windows-latest
+    environment: PROD
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: spfx-package
+
+      - name: Install CLI
+        run: npm install -g @pnp/cli-microsoft365
+
+      - name: Create certificate file
+        shell: pwsh
+        run: |
+          $bytes = [Convert]::FromBase64String("${{ secrets.CERT_BASE64 }}")
+          [IO.File]::WriteAllBytes("cert.pfx", $bytes)
+
+      - name: Login
+        run: |
+          m365 login --authType certificate `
+            --appId "${{ secrets.CLIENT_ID }}" `
+            --tenant "wb0wj.onmicrosoft.com" `
+            --certificateFile "cert.pfx" `
+            --password "${{ secrets.CERT_PASSWORD }}"
+
+      - name: Deploy to PROD
+        shell: pwsh
+        run: |
+          $package = Get-ChildItem *.sppkg | Select-Object -First 1
+
+          m365 spo app add --filePath $package.FullName --overwrite --appCatalogScope tenant
+          m365 spo app deploy --name $package.Name --appCatalogScope tenant --skipFeatureDeployment true
+          m365 spo app install --name $package.Name --siteUrl https://wb0wj.sharepoint.com/sites/prod
+
       - name: Logout
         run: m365 logout
