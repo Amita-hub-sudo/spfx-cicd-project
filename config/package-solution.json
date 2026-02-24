@@ -3,7 +3,7 @@
   "solution": {
     "name": "hello-word-client-side-solution",
     "id": "af5a30d2-8329-4a06-a6e0-1c6086db132c",
-    "version": "1.0.0.0",
+    "version": "1.0.0.2",
     "includeClientSideAssets": true,
     "skipFeatureDeployment": true,
     "isDomainIsolated": false,
@@ -30,7 +30,7 @@
         "title": "hello-word Feature",
         "description": "The feature that activates elements of the hello-word solution.",
         "id": "cbeec3af-15a6-416a-a721-08c0bb33c860",
-        "version": "1.0.0.1"
+        "version": "1.0.0.0"
       }
     ]
   },
