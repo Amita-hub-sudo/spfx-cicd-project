@@ -1,50 +1,46 @@
-name: SPFx CI/CD
+name: SPFx Stage Promotion Pipeline
 
 on:
   push:
     branches:
-      - develop
+      - dev
       - test
-      - main
+      - prod
 
 jobs:
-
-  build:
+  build-and-promote:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # 1️⃣ Checkout repository
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      # 2️⃣ Setup Node
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - run: npm install
-      - run: npm install -g gulp
+      # 3️⃣ Install dependencies
+      - name: Install dependencies
+        run: |
+          npm install
+          npm install -g gulp
 
-      - run: gulp bundle --ship
-      - run: gulp package-solution --ship
+      # 4️⃣ Build SPFx solution
+      - name: Bundle Solution
+        run: gulp bundle --ship
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: sppkg
-          path: sharepoint/solution/*.sppkg
+      - name: Package Solution
+        run: gulp package-solution --ship
 
+      # 5️⃣ Install CLI for Microsoft 365
+      - name: Install CLI for M365
+        run: npm install -g @pnp/cli-microsoft365
 
-  deploy-dev:
-    if: github.ref == 'refs/heads/develop'
-    needs: build
-    runs-on: ubuntu-latest
-    environment: dev
-
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: sppkg
-
-      - run: npm install -g @pnp/cli-microsoft365
-
-      - name: Login
+      # 6️⃣ Login using certificate
+      - name: Login to Microsoft 365
         run: |
           m365 login --authType certificate \
             --tenant "${{ secrets.TENANT_ID }}" \
@@ -52,97 +48,44 @@ jobs:
             --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}" \
             --password "${{ secrets.CERTIFICATE_PASSWORD }}"
 
-      - name: Deploy to DEV Site App Catalog
+      # 7️⃣ Deploy & Install Based on Branch
+      - name: Deploy and Install to Environment
         run: |
-          FILE=$(ls *.sppkg)
+          FILE=$(ls sharepoint/solution/*.sppkg)
+          PACKAGE_NAME=$(basename "$FILE")
 
-          echo "Deploying $FILE to DEV"
+          echo "Package: $PACKAGE_NAME"
+          echo "Current Branch: $GITHUB_REF"
 
+          # Upload to Tenant App Catalog
           m365 spo app add \
             --filePath "$FILE" \
-            --appCatalogUrl "https://wb0wj.sharepoint.com/sites/dev" \
             --overwrite
 
+          # Deploy globally
           m365 spo app deploy \
-            --name "$FILE" \
-            --appCatalogUrl "https://wb0wj.sharepoint.com/sites/dev"
+            --name "$PACKAGE_NAME"
 
-      - run: m365 logout
+          # Decide target site based on branch
+          if [[ "${GITHUB_REF}" == "refs/heads/dev" ]]; then
+            SITE="https://wb0wj.sharepoint.com/sites/dev"
+            echo "Installing to DEV site"
+          elif [[ "${GITHUB_REF}" == "refs/heads/test" ]]; then
+            SITE="https://wb0wj.sharepoint.com/sites/testing"
+            echo "Installing to TEST site"
+          elif [[ "${GITHUB_REF}" == "refs/heads/prod" ]]; then
+            SITE="https://wb0wj.sharepoint.com/sites/prod"
+            echo "Installing to PROD site"
+          else
+            echo "No matching environment"
+            exit 1
+          fi
 
+          # Install app to selected site
+          m365 spo app install \
+            --name "$PACKAGE_NAME" \
+            --siteUrl "$SITE"
 
-  deploy-test:
-    if: github.ref == 'refs/heads/test'
-    needs: build
-    runs-on: ubuntu-latest
-    environment: test
-
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: sppkg
-
-      - run: npm install -g @pnp/cli-microsoft365
-
-      - name: Login
-        run: |
-          m365 login --authType certificate \
-            --tenant "${{ secrets.TENANT_ID }}" \
-            --appId "${{ secrets.CLIENT_ID }}" \
-            --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}" \
-            --password "${{ secrets.CERTIFICATE_PASSWORD }}"
-
-      - name: Deploy to TEST Site App Catalog
-        run: |
-          FILE=$(ls *.sppkg)
-
-          echo "Deploying $FILE to TEST"
-
-          m365 spo app add \
-            --filePath "$FILE" \
-            --appCatalogUrl "https://wb0wj.sharepoint.com/sites/testing" \
-            --overwrite
-
-          m365 spo app deploy \
-            --name "$FILE" \
-            --appCatalogUrl "https://wb0wj.sharepoint.com/sites/testing"
-
-      - run: m365 logout
-
-
-  deploy-prod:
-    if: github.ref == 'refs/heads/main'
-    needs: build
-    runs-on: ubuntu-latest
-    environment: prod
-
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: sppkg
-
-      - run: npm install -g @pnp/cli-microsoft365
-
-      - name: Login
-        run: |
-          m365 login --authType certificate \
-            --tenant "${{ secrets.TENANT_ID }}" \
-            --appId "${{ secrets.CLIENT_ID }}" \
-            --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}" \
-            --password "${{ secrets.CERTIFICATE_PASSWORD }}"
-
-      - name: Deploy to PROD Site App Catalog
-        run: |
-          FILE=$(ls *.sppkg)
-
-          echo "Deploying $FILE to PROD"
-
-          m365 spo app add \
-            --filePath "$FILE" \
-            --appCatalogUrl "https://wb0wj.sharepoint.com/sites/prod" \
-            --overwrite
-
-          m365 spo app deploy \
-            --name "$FILE" \
-            --appCatalogUrl "https://wb0wj.sharepoint.com/sites/prod"
-
-      - run: m365 logout
+      # 8️⃣ Logout
+      - name: Logout
+        run: m365 logout
