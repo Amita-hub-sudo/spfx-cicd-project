@@ -3,139 +3,56 @@ name: SPFx CI/CD
 on:
   push:
     branches:
-      - develop 
+      - develop
       - test
       - main
 
 jobs:
-
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
-      - name: Use Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
-          node-version: 18.x
+          node-version: '18'
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: npm install
 
-      - name: Bundle solution
+      - name: Install Gulp
+        run: npm install -g gulp
+
+      - name: Bundle Solution
         run: gulp bundle --ship
 
-      - name: Package solution
+      - name: Package Solution
         run: gulp package-solution --ship
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: sppkg
-          path: sharepoint/solution/*.sppkg
-
-  deploy-dev:
-    if: github.ref == 'refs/heads/develop'
-    needs: build
-    runs-on: ubuntu-latest
-    environment: DEV
-
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: sppkg
-
-      - name: Install CLI for Microsoft 365
+      - name: Install Microsoft 365 CLI
         run: npm install -g @pnp/cli-microsoft365
 
-      - name: Login
+      - name: Login to Microsoft 365 (Certificate)
         run: |
-          m365 login --authType secret \
+          m365 login --authType certificate \
             --tenant ${{ secrets.TENANT_ID }} \
             --appId ${{ secrets.CLIENT_ID }} \
-            --appSecret ${{ secrets.CLIENT_SECRET }}
+            --certificateBase64Encoded ${{ secrets.CERTIFICATE_BASE64 }} \
+            --password ${{ secrets.CERTIFICATE_PASSWORD }}
 
-      - name: Deploy to DEV
+      - name: Deploy to App Catalog
         run: |
-          $package = Get-ChildItem *.sppkg | Select-Object -First 1
+          m365 spo app add \
+            --filePath sharepoint/solution/*.sppkg \
+            --appCatalogUrl ${{ secrets.APP_CATALOG_URL }} \
+            --overwrite
 
-          m365 spo app add --filePath $package.FullName --overwrite --appCatalogScope tenant
+          m365 spo app deploy \
+            --name *.sppkg \
+            --appCatalogUrl ${{ secrets.APP_CATALOG_URL }}
 
-          $app = m365 spo app list --appCatalogScope tenant --output json | ConvertFrom-Json | Where-Object { $_.Title -eq "hello-word-client-side-solution" }
-
-          m365 spo app deploy --id $app.Id --appCatalogScope tenant --skipFeatureDeployment
-
-          m365 spo app install --id $app.Id --appCatalogScope tenant --siteUrl https://wb0wj.sharepoint.com/sites/dev
-        shell: pwsh
-
-
-  deploy-test:
-    if: github.ref == 'refs/heads/test'
-    needs: build
-    runs-on: ubuntu-latest
-    environment: TEST
-
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: sppkg
-
-      - name: Install CLI for Microsoft 365
-        run: npm install -g @pnp/cli-microsoft365
-
-      - name: Login
-        run: |
-          m365 login --authType secret \
-            --tenant ${{ secrets.TENANT_ID }} \
-            --appId ${{ secrets.CLIENT_ID }} \
-            --appSecret ${{ secrets.CLIENT_SECRET }}
-
-      - name: Deploy to TEST
-        run: |
-          $package = Get-ChildItem *.sppkg | Select-Object -First 1
-
-          m365 spo app add --filePath $package.FullName --overwrite --appCatalogScope tenant
-
-          $app = m365 spo app list --appCatalogScope tenant --output json | ConvertFrom-Json | Where-Object { $_.Title -eq "hello-word-client-side-solution" }
-
-          m365 spo app deploy --id $app.Id --appCatalogScope tenant --skipFeatureDeployment
-
-          m365 spo app install --id $app.Id --appCatalogScope tenant --siteUrl https://wb0wj.sharepoint.com/sites/test
-        shell: pwsh
-
-
-  deploy-prod:
-    if: github.ref == 'refs/heads/main'
-    needs: build
-    runs-on: ubuntu-latest
-    environment: PROD
-
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: sppkg
-
-      - name: Install CLI for Microsoft 365
-        run: npm install -g @pnp/cli-microsoft365
-
-      - name: Login
-        run: |
-          m365 login --authType secret \
-            --tenant ${{ secrets.TENANT_ID }} \
-            --appId ${{ secrets.CLIENT_ID }} \
-            --appSecret ${{ secrets.CLIENT_SECRET }}
-
-      - name: Deploy to PROD
-        run: |
-          $package = Get-ChildItem *.sppkg | Select-Object -First 1
-
-          m365 spo app add --filePath $package.FullName --overwrite --appCatalogScope tenant
-
-          $app = m365 spo app list --appCatalogScope tenant --output json | ConvertFrom-Json | Where-Object { $_.Title -eq "hello-word-client-side-solution" }
-
-          m365 spo app deploy --id $app.Id --appCatalogScope tenant --skipFeatureDeployment
-
-          m365 spo app install --id $app.Id --appCatalogScope tenant --siteUrl https://wb0wj.sharepoint.com/sites/prod
-        shell: pwsh
+      - name: Logout
+        run: m365 logout
