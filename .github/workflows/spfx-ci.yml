@@ -3,7 +3,7 @@ name: SPFx Stage Promotion Pipeline
 on:
   push:
     branches:
-      - dev
+      - dev 
       - test
       - prod
 
