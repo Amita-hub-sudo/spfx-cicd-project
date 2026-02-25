@@ -5,7 +5,7 @@ on:
     branches:
       - develop
       - test
-      - main
+      - main 
 
 jobs:
 
