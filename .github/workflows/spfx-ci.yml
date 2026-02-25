@@ -1,4 +1,4 @@
-name: SPFx CI/CD
+name: SPFx Stage CI/CD
 
 on:
   push:
@@ -8,154 +8,85 @@ on:
       - main
 
 jobs:
-
-  # ==========================================
-  # BUILD JOB (Runs on all branches)
-  # ==========================================
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Install Dependencies
-        run: npm install
+      - name: Install dependencies
+        run: |
+          npm install
+          npm install -g gulp
 
-      - name: Install Gulp
-        run: npm install -g gulp
+      - name: Build SPFx
+        run: |
+          gulp bundle --ship
+          gulp package-solution --ship
 
-      - name: Bundle
-        run: gulp bundle --ship
-
-      - name: Package Solution
-        run: gulp package-solution --ship
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: sppkg
-          path: sharepoint/solution/*.sppkg
-
-
-  # ==========================================
-  # DEV DEPLOYMENT
-  # ==========================================
-  deploy-dev:
-    if: github.ref == 'refs/heads/develop'
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: sppkg
-
-      - name: Install M365 CLI
+      - name: Install CLI
         run: npm install -g @pnp/cli-microsoft365
 
-      - name: Login (Certificate)
-        run: >
-          m365 login --authType certificate
-          --tenant "${{ secrets.TENANT_ID }}"
-          --appId "${{ secrets.CLIENT_ID }}"
-          --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}"
-          --password "${{ secrets.CERTIFICATE_PASSWORD }}"
-
-      - name: Deploy to DEV App Catalog
+      - name: Login to Microsoft 365
         run: |
-          FILE=$(ls *.sppkg)
+          m365 login --authType certificate \
+            --tenant "${{ secrets.TENANT_ID }}" \
+            --appId "${{ secrets.CLIENT_ID }}" \
+            --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}" \
+            --password "${{ secrets.CERTIFICATE_PASSWORD }}"
+
+      - name: Deploy and Install
+        run: |
+          FILE=$(ls sharepoint/solution/*.sppkg)
+          PACKAGE_NAME=$(basename "$FILE")
+
+          echo "Branch: $GITHUB_REF"
+          echo "Package: $PACKAGE_NAME"
+
+          # Upload to Tenant App Catalog
           m365 spo app add \
             --filePath "$FILE" \
-            --appCatalogUrl "${{ secrets.DEV_APP_CATALOG_URL }}" \
             --overwrite
+
+          # Deploy solution
           m365 spo app deploy \
-            --name "$FILE" \
-            --appCatalogUrl "${{ secrets.DEV_APP_CATALOG_URL }}"
+            --name "$PACKAGE_NAME"
 
-      - name: Logout
-        run: m365 logout
+          # Decide site based on branch
+          if [[ "${GITHUB_REF}" == "refs/heads/develop" ]]; then
+            SITE="https://wb0wj.sharepoint.com/sites/dev"
+            echo "Installing on DEV"
+          elif [[ "${GITHUB_REF}" == "refs/heads/test" ]]; then
+            SITE="https://wb0wj.sharepoint.com/sites/testing"
+            echo "Installing on TEST"
+          elif [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
+            SITE="https://wb0wj.sharepoint.com/sites/prod"
+            echo "Installing on PROD"
+          else
+            echo "No matching branch"
+            exit 1
+          fi
 
+          # Get App ID and install
+          APP_ID=$(m365 spo app get \
+            --name "$PACKAGE_NAME" \
+            --output json | node -pe "JSON.parse(fs.readFileSync(0)).ID")
 
-  # ==========================================
-  # TEST DEPLOYMENT
-  # ==========================================
-  deploy-test:
-    if: github.ref == 'refs/heads/test'
-    needs: build
-    runs-on: ubuntu-latest
+          echo "App ID: $APP_ID"
 
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: sppkg
-
-      - name: Install M365 CLI
-        run: npm install -g @pnp/cli-microsoft365
-
-      - name: Login (Certificate)
-        run: >
-          m365 login --authType certificate
-          --tenant "${{ secrets.TENANT_ID }}"
-          --appId "${{ secrets.CLIENT_ID }}"
-          --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}"
-          --password "${{ secrets.CERTIFICATE_PASSWORD }}"
-
-      - name: Deploy to TEST App Catalog
-        run: |
-          FILE=$(ls *.sppkg)
-          m365 spo app add \
-            --filePath "$FILE" \
-            --appCatalogUrl "${{ secrets.TEST_APP_CATALOG_URL }}" \
-            --overwrite
-          m365 spo app deploy \
-            --name "$FILE" \
-            --appCatalogUrl "${{ secrets.TEST_APP_CATALOG_URL }}"
-
-      - name: Logout
-        run: m365 logout
-
-
-  # ==========================================
-  # PROD DEPLOYMENT
-  # ==========================================
-  deploy-prod:
-    if: github.ref == 'refs/heads/main'
-    needs: build
-    runs-on: ubuntu-latest
-    environment: production   # Enables manual approval
-
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: sppkg
-
-      - name: Install M365 CLI
-        run: npm install -g @pnp/cli-microsoft365
-
-      - name: Login (Certificate)
-        run: >
-          m365 login --authType certificate
-          --tenant "${{ secrets.TENANT_ID }}"
-          --appId "${{ secrets.CLIENT_ID }}"
-          --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}"
-          --password "${{ secrets.CERTIFICATE_PASSWORD }}"
-
-      - name: Deploy to PROD App Catalog
-        run: |
-          FILE=$(ls *.sppkg)
-          m365 spo app add \
-            --filePath "$FILE" \
-            --appCatalogUrl "${{ secrets.PROD_APP_CATALOG_URL }}" \
-            --overwrite
-          m365 spo app deploy \
-            --name "$FILE" \
-            --appCatalogUrl "${{ secrets.PROD_APP_CATALOG_URL }}"
+          # Install (first time) or upgrade (if exists)
+          if ! m365 spo app install --id "$APP_ID" --siteUrl "$SITE"; then
+            echo "Install failed, trying upgrade..."
+            m365 spo app upgrade \
+              --id "$APP_ID" \
+              --siteUrl "$SITE"
+          fi
 
       - name: Logout
         run: m365 logout
