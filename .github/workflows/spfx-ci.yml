@@ -56,16 +56,16 @@ jobs:
         run: |
           FILE=$(ls *.sppkg)
 
+          echo "Deploying $FILE to DEV"
+
           m365 spo app add \
             --filePath "$FILE" \
             --appCatalogUrl "https://wb0wj.sharepoint.com/sites/dev" \
-            --scope sitecollection \
             --overwrite
 
           m365 spo app deploy \
             --name "$FILE" \
-            --appCatalogUrl "https://wb0wj.sharepoint.com/sites/dev" \
-            --scope sitecollection
+            --appCatalogUrl "https://wb0wj.sharepoint.com/sites/dev"
 
       - run: m365 logout
 
@@ -95,16 +95,16 @@ jobs:
         run: |
           FILE=$(ls *.sppkg)
 
+          echo "Deploying $FILE to TEST"
+
           m365 spo app add \
             --filePath "$FILE" \
             --appCatalogUrl "https://wb0wj.sharepoint.com/sites/testing" \
-            --scope sitecollection \
             --overwrite
 
           m365 spo app deploy \
             --name "$FILE" \
-            --appCatalogUrl "https://wb0wj.sharepoint.com/sites/testing" \
-            --scope sitecollection
+            --appCatalogUrl "https://wb0wj.sharepoint.com/sites/testing"
 
       - run: m365 logout
 
@@ -134,15 +134,15 @@ jobs:
         run: |
           FILE=$(ls *.sppkg)
 
+          echo "Deploying $FILE to PROD"
+
           m365 spo app add \
             --filePath "$FILE" \
             --appCatalogUrl "https://wb0wj.sharepoint.com/sites/prod" \
-            --scope sitecollection \
             --overwrite
 
           m365 spo app deploy \
             --name "$FILE" \
-            --appCatalogUrl "https://wb0wj.sharepoint.com/sites/prod" \
-            --scope sitecollection
+            --appCatalogUrl "https://wb0wj.sharepoint.com/sites/prod"
 
       - run: m365 logout
