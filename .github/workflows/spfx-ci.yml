@@ -9,9 +9,9 @@ on:
 
 jobs:
 
-  # =========================
-  # BUILD JOB (Runs for all branches)
-  # =========================
+  # ==========================================
+  # BUILD JOB (Runs on all branches)
+  # ==========================================
   build:
     runs-on: ubuntu-latest
 
@@ -19,7 +19,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -36,16 +36,16 @@ jobs:
       - name: Package Solution
         run: gulp package-solution --ship
 
-      - name: Upload Package Artifact
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: sppkg
           path: sharepoint/solution/*.sppkg
 
 
-  # =========================
+  # ==========================================
   # DEV DEPLOYMENT
-  # =========================
+  # ==========================================
   deploy-dev:
     if: github.ref == 'refs/heads/develop'
     needs: build
@@ -60,12 +60,12 @@ jobs:
         run: npm install -g @pnp/cli-microsoft365
 
       - name: Login (Certificate)
-        run: |
-          m365 login --authType certificate \
-            --tenant ${{ secrets.TENANT_ID }} \
-            --appId ${{ secrets.CLIENT_ID }} \
-            --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}" \
-            --password "${{ secrets.CERTIFICATE_PASSWORD }}
+        run: >
+          m365 login --authType certificate
+          --tenant "${{ secrets.TENANT_ID }}"
+          --appId "${{ secrets.CLIENT_ID }}"
+          --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}"
+          --password "${{ secrets.CERTIFICATE_PASSWORD }}"
 
       - name: Deploy to DEV App Catalog
         run: |
@@ -82,9 +82,9 @@ jobs:
         run: m365 logout
 
 
-  # =========================
+  # ==========================================
   # TEST DEPLOYMENT
-  # =========================
+  # ==========================================
   deploy-test:
     if: github.ref == 'refs/heads/test'
     needs: build
@@ -99,12 +99,12 @@ jobs:
         run: npm install -g @pnp/cli-microsoft365
 
       - name: Login (Certificate)
-        run: |
-          m365 login --authType certificate \
-            --tenant ${{ secrets.TENANT_ID }} \
-            --appId ${{ secrets.CLIENT_ID }} \
-            --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}" \
-            --password "${{ secrets.CERTIFICATE_PASSWORD }}
+        run: >
+          m365 login --authType certificate
+          --tenant "${{ secrets.TENANT_ID }}"
+          --appId "${{ secrets.CLIENT_ID }}"
+          --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}"
+          --password "${{ secrets.CERTIFICATE_PASSWORD }}"
 
       - name: Deploy to TEST App Catalog
         run: |
@@ -121,14 +121,14 @@ jobs:
         run: m365 logout
 
 
-  # =========================
+  # ==========================================
   # PROD DEPLOYMENT
-  # =========================
+  # ==========================================
   deploy-prod:
     if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
-    environment: production   # enables approval
+    environment: production   # Enables manual approval
 
     steps:
       - uses: actions/download-artifact@v4
@@ -139,12 +139,12 @@ jobs:
         run: npm install -g @pnp/cli-microsoft365
 
       - name: Login (Certificate)
-        run: |
-          m365 login --authType certificate \
-            --tenant ${{ secrets.TENANT_ID }} \
-            --appId ${{ secrets.CLIENT_ID }} \
-            --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}" \
-            --password "${{ secrets.CERTIFICATE_PASSWORD }}
+        run: >
+          m365 login --authType certificate
+          --tenant "${{ secrets.TENANT_ID }}"
+          --appId "${{ secrets.CLIENT_ID }}"
+          --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}"
+          --password "${{ secrets.CERTIFICATE_PASSWORD }}"
 
       - name: Deploy to PROD App Catalog
         run: |
