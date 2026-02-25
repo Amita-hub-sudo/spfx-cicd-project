@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - develop
-      - test
-      - main
 
 jobs:
   build-and-deploy:
@@ -15,11 +13,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: 20
 
       - name: Install Dependencies
         run: npm install
@@ -27,16 +24,16 @@ jobs:
       - name: Install Gulp
         run: npm install -g gulp
 
-      - name: Build Solution
+      - name: Build
         run: gulp bundle --ship
 
-      - name: Package Solution
+      - name: Package
         run: gulp package-solution --ship
 
-      - name: Install Microsoft 365 CLI
+      - name: Install M365 CLI
         run: npm install -g @pnp/cli-microsoft365
 
-      - name: Login to Microsoft 365 (Certificate)
+      - name: Login (Certificate)
         run: |
           m365 login --authType certificate \
             --tenant ${{ secrets.TENANT_ID }} \
@@ -44,20 +41,20 @@ jobs:
             --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}" \
             --password "${{ secrets.CERTIFICATE_PASSWORD }}"
 
-      - name: Upload App to App Catalog
+      - name: Upload App
         run: |
           FILE=$(ls sharepoint/solution/*.sppkg)
           m365 spo app add \
-            --filePath $FILE \
-            --appCatalogUrl ${{ secrets.APP_CATALOG_URL }} \
+            --filePath "$FILE" \
+            --appCatalogUrl "${{ secrets.APP_CATALOG_URL }}" \
             --overwrite
 
       - name: Deploy App
         run: |
           FILE_NAME=$(basename sharepoint/solution/*.sppkg)
           m365 spo app deploy \
-            --name $FILE_NAME \
-            --appCatalogUrl ${{ secrets.APP_CATALOG_URL }}
+            --name "$FILE_NAME" \
+            --appCatalogUrl "${{ secrets.APP_CATALOG_URL }}"
 
       - name: Logout
         run: m365 logout
