@@ -44,6 +44,7 @@ jobs:
     if: github.ref == 'refs/heads/develop'
     needs: build
     runs-on: ubuntu-latest
+    environment: dev
 
     steps:
       - uses: actions/download-artifact@v4
@@ -66,13 +67,12 @@ jobs:
           FILE=$(ls *.sppkg)
           m365 spo app add \
             --filePath "$FILE" \
-            --appCatalogUrl "${{ secrets.DEV_APP_CATALOG_URL }}" \
+            --appCatalogUrl "${{ secrets.APP_CATALOG_URL }}" \
             --overwrite
 
           m365 spo app deploy \
             --name "$FILE" \
-            --appCatalogUrl "${{ secrets.DEV_APP_CATALOG_URL }}" \
-            --confirm
+            --appCatalogUrl "${{ secrets.APP_CATALOG_URL }}"
 
       - run: m365 logout
 
@@ -81,6 +81,7 @@ jobs:
     if: github.ref == 'refs/heads/test'
     needs: build
     runs-on: ubuntu-latest
+    environment: test
 
     steps:
       - uses: actions/download-artifact@v4
@@ -103,13 +104,12 @@ jobs:
           FILE=$(ls *.sppkg)
           m365 spo app add \
             --filePath "$FILE" \
-            --appCatalogUrl "${{ secrets.TEST_APP_CATALOG_URL }}" \
+            --appCatalogUrl "${{ secrets.APP_CATALOG_URL }}" \
             --overwrite
 
           m365 spo app deploy \
             --name "$FILE" \
-            --appCatalogUrl "${{ secrets.TEST_APP_CATALOG_URL }}" \
-            --confirm
+            --appCatalogUrl "${{ secrets.APP_CATALOG_URL }}"
 
       - run: m365 logout
 
@@ -118,6 +118,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
+    environment: prod
 
     steps:
       - uses: actions/download-artifact@v4
@@ -140,12 +141,11 @@ jobs:
           FILE=$(ls *.sppkg)
           m365 spo app add \
             --filePath "$FILE" \
-            --appCatalogUrl "${{ secrets.PROD_APP_CATALOG_URL }}" \
+            --appCatalogUrl "${{ secrets.APP_CATALOG_URL }}" \
             --overwrite
 
           m365 spo app deploy \
             --name "$FILE" \
-            --appCatalogUrl "${{ secrets.PROD_APP_CATALOG_URL }}" \
-            --confirm
+            --appCatalogUrl "${{ secrets.APP_CATALOG_URL }}"
 
       - run: m365 logout
