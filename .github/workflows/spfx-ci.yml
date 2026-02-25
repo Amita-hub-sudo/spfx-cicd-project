@@ -1,98 +1,52 @@
-name: SPFx Stage Promotion Pipeline
+- name: Deploy and Install
+  run: |
+    sudo apt-get install jq -y
 
-on:
-  push:
-    branches:
-      - develop
-      - test
-      - main
+    FILE=$(ls sharepoint/solution/*.sppkg)
+    PACKAGE_NAME=$(basename "$FILE")
 
-jobs:
-  build-and-promote:
-    runs-on: ubuntu-latest
+    echo "Branch: $GITHUB_REF"
+    echo "Package: $PACKAGE_NAME"
 
-    steps:
-      # 1️⃣ Checkout code
-      - name: Checkout
-        uses: actions/checkout@v4
+    # Upload to Tenant App Catalog
+    m365 spo app add \
+      --filePath "$FILE" \
+      --overwrite
 
-      # 2️⃣ Setup Node
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+    # Deploy globally
+    m365 spo app deploy \
+      --name "$PACKAGE_NAME"
 
-      # 3️⃣ Install dependencies
-      - name: Install dependencies
-        run: |
-          npm install
-          npm install -g gulp
+    # Decide target site based on branch
+    if [[ "${GITHUB_REF}" == "refs/heads/develop" ]]; then
+      SITE="https://wb0wj.sharepoint.com/sites/dev"
+      echo "Installing on DEV"
+    elif [[ "${GITHUB_REF}" == "refs/heads/test" ]]; then
+      SITE="https://wb0wj.sharepoint.com/sites/testing"
+      echo "Installing on TEST"
+    elif [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
+      SITE="https://wb0wj.sharepoint.com/sites/prod"
+      echo "Installing on PROD"
+    else
+      echo "No matching branch"
+      exit 1
+    fi
 
-      # 4️⃣ Build SPFx
-      - name: Bundle solution
-        run: gulp bundle --ship
+    # Get App ID from catalog
+    APP_ID=$(m365 spo app get \
+      --name "$PACKAGE_NAME" \
+      --output json | node -pe "JSON.parse(fs.readFileSync(0)).ID")
 
-      - name: Package solution
-        run: gulp package-solution --ship
+    echo "App ID: $APP_ID"
 
-      # 5️⃣ Install CLI for Microsoft 365
-      - name: Install CLI
-        run: npm install -g @pnp/cli-microsoft365
+    # Try INSTALL first (first time deployment)
+    if m365 spo app install --id "$APP_ID" --siteUrl "$SITE"; then
+      echo "Installed successfully"
+    else
+      echo "Install failed, trying upgrade..."
 
-      # 6️⃣ Login using certificate
-      - name: Login to Microsoft 365
-        run: |
-          m365 login --authType certificate \
-            --tenant "${{ secrets.TENANT_ID }}" \
-            --appId "${{ secrets.CLIENT_ID }}" \
-            --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}" \
-            --password "${{ secrets.CERTIFICATE_PASSWORD }}"
-
-      # 7️⃣ Deploy and Install
-      - name: Deploy and Install Based on Branch
-        run: |
-          FILE=$(ls sharepoint/solution/*.sppkg)
-          PACKAGE_NAME=$(basename "$FILE")
-
-          echo "Branch: $GITHUB_REF"
-          echo "Package: $PACKAGE_NAME"
-
-          # Upload to Tenant App Catalog
-          m365 spo app add \
-            --filePath "$FILE" \
-            --overwrite
-
-          # Deploy globally
-          m365 spo app deploy \
-            --name "$PACKAGE_NAME"
-
-          # Get App ID dynamically (from the uploaded package)
-          APP_ID=$(m365 spo app get \
-            --name "$PACKAGE_NAME" \
-            --output json | node -pe "JSON.parse(fs.readFileSync(0)).ID")
-
-          echo "App ID: $APP_ID"
-
-          # Decide target site based on branch
-          if [[ "${GITHUB_REF}" == "refs/heads/develop" ]]; then
-            SITE="https://wb0wj.sharepoint.com/sites/dev"
-            echo "Installing to DEV site"
-          elif [[ "${GITHUB_REF}" == "refs/heads/test" ]]; then
-            SITE="https://wb0wj.sharepoint.com/sites/testing"
-            echo "Installing to TEST site"
-          elif [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
-            SITE="https://wb0wj.sharepoint.com/sites/prod"
-            echo "Installing to PROD site"
-          else
-            echo "No matching branch"
-            exit 1
-          fi
-
-          # Install to environment site
-          m365 spo app install \
-            --id "$APP_ID" \
-            --siteUrl "$SITE"
-
-      # 8️⃣ Logout
-      - name: Logout
-        run: m365 logout
+      # If already installed, upgrade
+      m365 spo app upgrade \
+        --id "$APP_ID" \
+        --siteUrl "$SITE"
+    fi
