@@ -3,44 +3,31 @@ name: SPFx Stage Promotion Pipeline
 on:
   push:
     branches:
-      - dev 
+      - develop
       - test
-      - prod
+      - main
 
 jobs:
   build-and-promote:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout repository
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # 2️⃣ Setup Node
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # 3️⃣ Install dependencies
-      - name: Install dependencies
-        run: |
+      - run: |
           npm install
           npm install -g gulp
 
-      # 4️⃣ Build SPFx solution
-      - name: Bundle Solution
-        run: gulp bundle --ship
+      - run: gulp bundle --ship
+      - run: gulp package-solution --ship
 
-      - name: Package Solution
-        run: gulp package-solution --ship
+      - run: npm install -g @pnp/cli-microsoft365
 
-      # 5️⃣ Install CLI for Microsoft 365
-      - name: Install CLI for M365
-        run: npm install -g @pnp/cli-microsoft365
-
-      # 6️⃣ Login using certificate
-      - name: Login to Microsoft 365
+      - name: Login
         run: |
           m365 login --authType certificate \
             --tenant "${{ secrets.TENANT_ID }}" \
@@ -48,44 +35,34 @@ jobs:
             --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}" \
             --password "${{ secrets.CERTIFICATE_PASSWORD }}"
 
-      # 7️⃣ Deploy & Install Based on Branch
-      - name: Deploy and Install to Environment
+      - name: Deploy and Install
         run: |
           FILE=$(ls sharepoint/solution/*.sppkg)
           PACKAGE_NAME=$(basename "$FILE")
 
+          echo "Branch: $GITHUB_REF"
           echo "Package: $PACKAGE_NAME"
-          echo "Current Branch: $GITHUB_REF"
 
-          # Upload to Tenant App Catalog
           m365 spo app add \
             --filePath "$FILE" \
             --overwrite
 
-          # Deploy globally
           m365 spo app deploy \
             --name "$PACKAGE_NAME"
 
-          # Decide target site based on branch
-          if [[ "${GITHUB_REF}" == "refs/heads/dev" ]]; then
+          if [[ "${GITHUB_REF}" == "refs/heads/develop" ]]; then
             SITE="https://wb0wj.sharepoint.com/sites/dev"
-            echo "Installing to DEV site"
+            echo "Installing to DEV"
           elif [[ "${GITHUB_REF}" == "refs/heads/test" ]]; then
             SITE="https://wb0wj.sharepoint.com/sites/testing"
-            echo "Installing to TEST site"
-          elif [[ "${GITHUB_REF}" == "refs/heads/prod" ]]; then
+            echo "Installing to TEST"
+          elif [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
             SITE="https://wb0wj.sharepoint.com/sites/prod"
-            echo "Installing to PROD site"
-          else
-            echo "No matching environment"
-            exit 1
+            echo "Installing to PROD"
           fi
 
-          # Install app to selected site
           m365 spo app install \
             --name "$PACKAGE_NAME" \
             --siteUrl "$SITE"
 
-      # 8️⃣ Logout
-      - name: Logout
-        run: m365 logout
+      - run: m365 logout
