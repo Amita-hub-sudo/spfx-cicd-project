@@ -9,9 +9,6 @@ on:
 
 jobs:
 
-  # ==========================================
-  # BUILD JOB (Runs on all branches)
-  # ==========================================
   build:
     runs-on: ubuntu-latest
 
@@ -19,7 +16,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -30,10 +27,10 @@ jobs:
       - name: Install Gulp
         run: npm install -g gulp
 
-      - name: Bundle
+      - name: Build
         run: gulp bundle --ship
 
-      - name: Package Solution
+      - name: Package
         run: gulp package-solution --ship
 
       - name: Upload Artifact
@@ -43,9 +40,6 @@ jobs:
           path: sharepoint/solution/*.sppkg
 
 
-  # ==========================================
-  # DEV DEPLOYMENT
-  # ==========================================
   deploy-dev:
     if: github.ref == 'refs/heads/develop'
     needs: build
@@ -59,32 +53,30 @@ jobs:
       - name: Install M365 CLI
         run: npm install -g @pnp/cli-microsoft365
 
-      - name: Login (Certificate)
-        run: >
-          m365 login --authType certificate
-          --tenant "${{ secrets.TENANT_ID }}"
-          --appId "${{ secrets.CLIENT_ID }}"
-          --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}"
-          --password "${{ secrets.CERTIFICATE_PASSWORD }}"
+      - name: Login
+        run: |
+          m365 login --authType certificate \
+            --tenant "${{ secrets.TENANT_ID }}" \
+            --appId "${{ secrets.CLIENT_ID }}" \
+            --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}" \
+            --password "${{ secrets.CERTIFICATE_PASSWORD }}"
 
-      - name: Deploy to DEV App Catalog
+      - name: Deploy to DEV
         run: |
           FILE=$(ls *.sppkg)
           m365 spo app add \
             --filePath "$FILE" \
             --appCatalogUrl "${{ secrets.DEV_APP_CATALOG_URL }}" \
             --overwrite
+
           m365 spo app deploy \
             --name "$FILE" \
-            --appCatalogUrl "${{ secrets.DEV_APP_CATALOG_URL }}"
+            --appCatalogUrl "${{ secrets.DEV_APP_CATALOG_URL }}" \
+            --confirm
 
-      - name: Logout
-        run: m365 logout
+      - run: m365 logout
 
 
-  # ==========================================
-  # TEST DEPLOYMENT
-  # ==========================================
   deploy-test:
     if: github.ref == 'refs/heads/test'
     needs: build
@@ -98,37 +90,34 @@ jobs:
       - name: Install M365 CLI
         run: npm install -g @pnp/cli-microsoft365
 
-      - name: Login (Certificate)
-        run: >
-          m365 login --authType certificate
-          --tenant "${{ secrets.TENANT_ID }}"
-          --appId "${{ secrets.CLIENT_ID }}"
-          --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}"
-          --password "${{ secrets.CERTIFICATE_PASSWORD }}"
+      - name: Login
+        run: |
+          m365 login --authType certificate \
+            --tenant "${{ secrets.TENANT_ID }}" \
+            --appId "${{ secrets.CLIENT_ID }}" \
+            --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}" \
+            --password "${{ secrets.CERTIFICATE_PASSWORD }}"
 
-      - name: Deploy to TEST App Catalog
+      - name: Deploy to TEST
         run: |
           FILE=$(ls *.sppkg)
           m365 spo app add \
             --filePath "$FILE" \
             --appCatalogUrl "${{ secrets.TEST_APP_CATALOG_URL }}" \
             --overwrite
+
           m365 spo app deploy \
             --name "$FILE" \
-            --appCatalogUrl "${{ secrets.TEST_APP_CATALOG_URL }}"
+            --appCatalogUrl "${{ secrets.TEST_APP_CATALOG_URL }}" \
+            --confirm
 
-      - name: Logout
-        run: m365 logout
+      - run: m365 logout
 
 
-  # ==========================================
-  # PROD DEPLOYMENT
-  # ==========================================
   deploy-prod:
     if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
-    environment: production   # Enables manual approval
 
     steps:
       - uses: actions/download-artifact@v4
@@ -138,24 +127,25 @@ jobs:
       - name: Install M365 CLI
         run: npm install -g @pnp/cli-microsoft365
 
-      - name: Login (Certificate)
-        run: >
-          m365 login --authType certificate
-          --tenant "${{ secrets.TENANT_ID }}"
-          --appId "${{ secrets.CLIENT_ID }}"
-          --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}"
-          --password "${{ secrets.CERTIFICATE_PASSWORD }}"
+      - name: Login
+        run: |
+          m365 login --authType certificate \
+            --tenant "${{ secrets.TENANT_ID }}" \
+            --appId "${{ secrets.CLIENT_ID }}" \
+            --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}" \
+            --password "${{ secrets.CERTIFICATE_PASSWORD }}"
 
-      - name: Deploy to PROD App Catalog
+      - name: Deploy to PROD
         run: |
           FILE=$(ls *.sppkg)
           m365 spo app add \
             --filePath "$FILE" \
             --appCatalogUrl "${{ secrets.PROD_APP_CATALOG_URL }}" \
             --overwrite
+
           m365 spo app deploy \
             --name "$FILE" \
-            --appCatalogUrl "${{ secrets.PROD_APP_CATALOG_URL }}"
+            --appCatalogUrl "${{ secrets.PROD_APP_CATALOG_URL }}" \
+            --confirm
 
-      - name: Logout
-        run: m365 logout
+      - run: m365 logout
