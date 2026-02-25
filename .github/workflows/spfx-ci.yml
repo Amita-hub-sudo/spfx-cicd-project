@@ -1,52 +1,92 @@
-- name: Deploy and Install
-  run: |
-    sudo apt-get install jq -y
+name: SPFx Stage CI/CD
 
-    FILE=$(ls sharepoint/solution/*.sppkg)
-    PACKAGE_NAME=$(basename "$FILE")
+on:
+  push:
+    branches:
+      - develop
+      - test
+      - main
 
-    echo "Branch: $GITHUB_REF"
-    echo "Package: $PACKAGE_NAME"
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
 
-    # Upload to Tenant App Catalog
-    m365 spo app add \
-      --filePath "$FILE" \
-      --overwrite
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    # Deploy globally
-    m365 spo app deploy \
-      --name "$PACKAGE_NAME"
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-    # Decide target site based on branch
-    if [[ "${GITHUB_REF}" == "refs/heads/develop" ]]; then
-      SITE="https://wb0wj.sharepoint.com/sites/dev"
-      echo "Installing on DEV"
-    elif [[ "${GITHUB_REF}" == "refs/heads/test" ]]; then
-      SITE="https://wb0wj.sharepoint.com/sites/testing"
-      echo "Installing on TEST"
-    elif [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
-      SITE="https://wb0wj.sharepoint.com/sites/prod"
-      echo "Installing on PROD"
-    else
-      echo "No matching branch"
-      exit 1
-    fi
+      - name: Install dependencies
+        run: |
+          npm install
+          npm install -g gulp
 
-    # Get App ID from catalog
-    APP_ID=$(m365 spo app get \
-      --name "$PACKAGE_NAME" \
-      --output json | node -pe "JSON.parse(fs.readFileSync(0)).ID")
+      - name: Build SPFx
+        run: |
+          gulp bundle --ship
+          gulp package-solution --ship
 
-    echo "App ID: $APP_ID"
+      - name: Install CLI
+        run: npm install -g @pnp/cli-microsoft365
 
-    # Try INSTALL first (first time deployment)
-    if m365 spo app install --id "$APP_ID" --siteUrl "$SITE"; then
-      echo "Installed successfully"
-    else
-      echo "Install failed, trying upgrade..."
+      - name: Login to Microsoft 365
+        run: |
+          m365 login --authType certificate \
+            --tenant "${{ secrets.TENANT_ID }}" \
+            --appId "${{ secrets.CLIENT_ID }}" \
+            --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}" \
+            --password "${{ secrets.CERTIFICATE_PASSWORD }}"
 
-      # If already installed, upgrade
-      m365 spo app upgrade \
-        --id "$APP_ID" \
-        --siteUrl "$SITE"
-    fi
+      - name: Deploy and Install
+        run: |
+          FILE=$(ls sharepoint/solution/*.sppkg)
+          PACKAGE_NAME=$(basename "$FILE")
+
+          echo "Branch: $GITHUB_REF"
+          echo "Package: $PACKAGE_NAME"
+
+          # Upload to Tenant App Catalog
+          m365 spo app add \
+            --filePath "$FILE" \
+            --overwrite
+
+          # Deploy solution
+          m365 spo app deploy \
+            --name "$PACKAGE_NAME"
+
+          # Decide site based on branch
+          if [[ "${GITHUB_REF}" == "refs/heads/develop" ]]; then
+            SITE="https://wb0wj.sharepoint.com/sites/dev"
+            echo "Installing on DEV"
+          elif [[ "${GITHUB_REF}" == "refs/heads/test" ]]; then
+            SITE="https://wb0wj.sharepoint.com/sites/testing"
+            echo "Installing on TEST"
+          elif [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
+            SITE="https://wb0wj.sharepoint.com/sites/prod"
+            echo "Installing on PROD"
+          else
+            echo "No matching branch"
+            exit 1
+          fi
+
+          # Get App ID and install
+          APP_ID=$(m365 spo app get \
+            --name "$PACKAGE_NAME" \
+            --output json | node -pe "JSON.parse(fs.readFileSync(0)).ID")
+
+          echo "App ID: $APP_ID"
+
+          # Install (first time) or upgrade (if exists)
+          if ! m365 spo app install --id "$APP_ID" --siteUrl "$SITE"; then
+            echo "Install failed, trying upgrade..."
+            m365 spo app upgrade \
+              --id "$APP_ID" \
+              --siteUrl "$SITE"
+          fi
+
+      - name: Logout
+        run: m365 logout
