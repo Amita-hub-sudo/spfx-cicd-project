@@ -5,7 +5,7 @@ on:
     branches:
       - develop
       - test
-      - main 
+      - main
 
 jobs:
 
@@ -13,28 +13,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Install Dependencies
-        run: npm install
+      - run: npm install
+      - run: npm install -g gulp
 
-      - name: Install Gulp
-        run: npm install -g gulp
+      - run: gulp bundle --ship
+      - run: gulp package-solution --ship
 
-      - name: Build
-        run: gulp bundle --ship
-
-      - name: Package
-        run: gulp package-solution --ship
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: sppkg
           path: sharepoint/solution/*.sppkg
@@ -51,8 +42,7 @@ jobs:
         with:
           name: sppkg
 
-      - name: Install M365 CLI
-        run: npm install -g @pnp/cli-microsoft365
+      - run: npm install -g @pnp/cli-microsoft365
 
       - name: Login
         run: |
@@ -62,17 +52,20 @@ jobs:
             --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}" \
             --password "${{ secrets.CERTIFICATE_PASSWORD }}"
 
-      - name: Deploy to DEV
+      - name: Deploy to DEV Site App Catalog
         run: |
           FILE=$(ls *.sppkg)
+
           m365 spo app add \
             --filePath "$FILE" \
-            --appCatalogUrl "${{ secrets.APP_CATALOG_URL }}" \
+            --appCatalogUrl "https://wb0wj.sharepoint.com/sites/dev" \
+            --scope sitecollection \
             --overwrite
 
           m365 spo app deploy \
             --name "$FILE" \
-            --appCatalogUrl "${{ secrets.APP_CATALOG_URL }}"
+            --appCatalogUrl "https://wb0wj.sharepoint.com/sites/dev" \
+            --scope sitecollection
 
       - run: m365 logout
 
@@ -88,8 +81,7 @@ jobs:
         with:
           name: sppkg
 
-      - name: Install M365 CLI
-        run: npm install -g @pnp/cli-microsoft365
+      - run: npm install -g @pnp/cli-microsoft365
 
       - name: Login
         run: |
@@ -99,17 +91,20 @@ jobs:
             --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}" \
             --password "${{ secrets.CERTIFICATE_PASSWORD }}"
 
-      - name: Deploy to TEST
+      - name: Deploy to TEST Site App Catalog
         run: |
           FILE=$(ls *.sppkg)
+
           m365 spo app add \
             --filePath "$FILE" \
-            --appCatalogUrl "${{ secrets.APP_CATALOG_URL }}" \
+            --appCatalogUrl "https://wb0wj.sharepoint.com/sites/testing" \
+            --scope sitecollection \
             --overwrite
 
           m365 spo app deploy \
             --name "$FILE" \
-            --appCatalogUrl "${{ secrets.APP_CATALOG_URL }}"
+            --appCatalogUrl "https://wb0wj.sharepoint.com/sites/testing" \
+            --scope sitecollection
 
       - run: m365 logout
 
@@ -125,8 +120,7 @@ jobs:
         with:
           name: sppkg
 
-      - name: Install M365 CLI
-        run: npm install -g @pnp/cli-microsoft365
+      - run: npm install -g @pnp/cli-microsoft365
 
       - name: Login
         run: |
@@ -136,16 +130,19 @@ jobs:
             --certificateBase64Encoded "${{ secrets.CERTIFICATE_BASE64 }}" \
             --password "${{ secrets.CERTIFICATE_PASSWORD }}"
 
-      - name: Deploy to PROD
+      - name: Deploy to PROD Site App Catalog
         run: |
           FILE=$(ls *.sppkg)
+
           m365 spo app add \
             --filePath "$FILE" \
-            --appCatalogUrl "${{ secrets.APP_CATALOG_URL }}" \
+            --appCatalogUrl "https://wb0wj.sharepoint.com/sites/prod" \
+            --scope sitecollection \
             --overwrite
 
           m365 spo app deploy \
             --name "$FILE" \
-            --appCatalogUrl "${{ secrets.APP_CATALOG_URL }}"
+            --appCatalogUrl "https://wb0wj.sharepoint.com/sites/prod" \
+            --scope sitecollection
 
       - run: m365 logout
